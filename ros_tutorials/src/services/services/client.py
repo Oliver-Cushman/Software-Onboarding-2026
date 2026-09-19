@@ -17,6 +17,7 @@
 
 import rclpy
 from rclpy.node import Node
+from interfaces.srv import RandomNumber 
 
 # Service design:
 #   Request: min_value, max_value
@@ -31,7 +32,7 @@ from rclpy.node import Node
 # 3. In __init__, call super().__init__("node_name") to register the node.
 # 4. Add services, publishers, subscribers, timers, and other ROS interfaces in __init__.
 # 5. In main(), initialize rclpy, create the node, then spin it.
-#    Finally destroy the node and shutdown ROS.
+#    Finally destroy the node and shutdown ROS. NOTE: Change this
 #
 # This pattern is the standard starting point for most ROS 2 Python nodes.
 
@@ -40,9 +41,15 @@ class ServiceClient(Node):
     def __init__(self):
         super().__init__('service_client')
 
+        self.client = self.create_client(RandomNumber, 'generate_random_number')
+
+        while self.client.wait_for_service(timeout_sec=1.0) is False:
+            self.get_logger().info('Service not available, waiting again...')
+
+        self.get_logger().info('Service is available!')
+
         # TODO: Create a client for the random-number service
         # TODO: Wait for the service to be available
-        # TODO: Create a request containing min and max values
 
         # create_client:
         #   Creates a service client used to call a ROS service.
@@ -57,15 +64,34 @@ class ServiceClient(Node):
 
     # Create a method that sends the service request.
     def send_request(self):
-        # TODO: Build a request object with a min and max range
-        # TODO: Call the service and wait for a response
-        # TODO: Log the returned random number
-        pass
+        # TODO: Create a request containing min and max values
+        # TODO: Call the service
 
+        # NOTE: Add call_async instructions
+        
+        req = RandomNumber.Request()
+        req.min_value = 1
+        req.max_value = 100
+        return self.client.call_async(req)
 
-if __name__ == '__main__':
+def main():
     rclpy.init()
     node = ServiceClient()
-    rclpy.spin(node)
+    
+    future = node.send_request()
+    rclpy.spin_until_future_complete(node, future)
+
+    try:
+        response = future.result()
+        node.get_logger().info(
+            f'Generated number: {response.random_number}'
+        )
+    except Exception as error:
+        node.get_logger().error(f'Service call failed: {error}')
+
     node.destroy_node()
     rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+    
