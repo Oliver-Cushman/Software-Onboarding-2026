@@ -22,6 +22,9 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionServer
+from interfaces.action import SleepFor
+import time
 
 # Action design:
 #   Goal: seconds (float64)
@@ -42,7 +45,7 @@ from rclpy.node import Node
 # This pattern is the standard starting point for most ROS 2 Python nodes.
 
 
-class ActionServer(Node):
+class Server(Node):
     def __init__(self):
         super().__init__('action_server')
 
@@ -50,7 +53,14 @@ class ActionServer(Node):
         # TODO: Use an execute_callback that handles the goal.
         # TODO: Publish feedback while sleeping.
 
-        # create_server:
+        self.server = ActionServer(
+            self,
+            SleepFor,
+            'sleep_for',
+            self.execute_callback
+        )
+
+        # self.create_server:
         #   Creates an action server that receives goals and manages execution.
         #   Usage: self.create_server(ActionType, 'action_name', execute_callback)
         #   - ActionType: the ROS action class you define in an .action file
@@ -67,14 +77,35 @@ class ActionServer(Node):
     def execute_callback(self, goal_handle):
         # TODO: Read goal_handle.request.seconds
         # TODO: Sleep for the requested duration
-        # TODO: Send feedback with remaining time
-        # TODO: Set the result and return it
-        return None
+        # TODO: Construct feedback object and periodically publish remaining time
+        # TODO: Call goal_handle.succeed() when done
+        # TODO: Set the result as successful and return it
+        # NOTE: There are several ways to handle the feedback mechanism here, but the most intuitive 
+        #       is probably to use a loop that sleeps for a short interval (e.g., 0.1 seconds) and 
+        #       updates the remaining time in feedback.
 
+        seconds = goal_handle.request.seconds
+        while seconds - 0.1 > 0:
+            feedback_msg = SleepFor.Feedback()
+            feedback_msg.remaining = seconds
+            goal_handle.publish_feedback(feedback_msg)
+            self.get_logger().info(f'Feedback: {feedback_msg.remaining:.2f} seconds remaining')
+            time.sleep(0.1)
+            seconds -= 0.1
+        time.sleep(seconds)
+        goal_handle.succeed()
+        result = SleepFor.Result()
+        result.success = True
+        self.get_logger().info('Result: Sleep completed successfully')
 
-if __name__ == '__main__':
+        return result
+
+def main():
     rclpy.init()
-    node = ActionServer()
+    node = Server()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+    
+if __name__ == '__main__':
+    main()

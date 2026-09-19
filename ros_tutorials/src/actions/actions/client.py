@@ -17,6 +17,8 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionClient
+from interfaces.action import SleepFor
 
 # Action design:
 #   Goal: seconds (float64)
@@ -37,13 +39,15 @@ from rclpy.node import Node
 # This pattern is the standard starting point for most ROS 2 Python nodes.
 
 
-class ActionClient(Node):
+class Client(Node):
     def __init__(self):
         super().__init__('action_client')
 
         # TODO: Create an action client for the SleepFor action type.
         # TODO: Wait until the action server is available.
         # TODO: Construct a goal with a duration value.
+
+        self.client = ActionClient(self, SleepFor, 'sleep_for')
 
         # create_client:
         #   Creates an action client used to send goals to a ROS action server.
@@ -56,16 +60,28 @@ class ActionClient(Node):
         #   Returns the node's ROS logger, used to print progress and results.
 
     # Create a method that sends the action goal.
-    def send_goal(self):
-        # TODO: Build a goal request with a sleep duration.
-        # TODO: Send the goal to the action server.
-        # TODO: Handle feedback and wait for the final result.
-        pass
+    def send_goal(self, seconds):
+        goal = SleepFor.Goal()
+        goal.seconds = seconds  # Example duration to sleep for 5 seconds
 
+        self.client.wait_for_server()
+        self.get_logger().info(f'Sending goal to sleep for {seconds} seconds...')
+        
+        return self.client.send_goal_async(goal, feedback_callback=self.feedback_callback)
+
+    def feedback_callback(self, feedback_msg):
+        feedback = feedback_msg.feedback
+        self.get_logger().info(f'Feedback: {feedback.remaining:.2f} seconds remaining')
+
+def main():
+    rclpy.init()
+    node = Client()
+    future = node.send_goal(10.0)
+    rclpy.spin_until_future_complete(node, future)
+    goal_handle = future.result()
+    result_future = goal_handle.get_result_async()
+    rclpy.spin_until_future_complete(node, result_future)
+    rclpy.shutdown()    
 
 if __name__ == '__main__':
-    rclpy.init()
-    node = ActionClient()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    main()
